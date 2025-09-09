@@ -139,7 +139,13 @@ export default function ColorConverter() {
           setHistory(parsed.slice(0, MAX_HISTORY))
         } catch {}
       }
-      if (p) setPinned(JSON.parse(p));
+      if (p) {
+        try {
+          const parsed: SavedColor[] = JSON.parse(p)
+          // filtra quaisquer cores fixadas manualmente antigas (sem generated)
+          setPinned(parsed.filter(pc => pc.generated))
+        } catch {}
+      }
     } catch {}
   }, [])
   useEffect(() => { try { localStorage.setItem('color-history', JSON.stringify(history)); } catch {} }, [history])
@@ -174,12 +180,7 @@ export default function ColorConverter() {
     setState(INITIAL)
   }
 
-  const pinCurrent = () => {
-    setPinned(prev => {
-      if (prev.find(p => p.hex === state.hex)) return prev
-      return [...prev, { hex: state.hex, rgb: state.rgb, timestamp: Date.now() }]
-    })
-  }
+  // Removido: funcionalidade de fixar manualmente a cor atual
 
   const removePinned = (hex: string) => setPinned(prev => prev.filter(p => p.hex !== hex))
   const clearHistory = () => setHistory([])
@@ -266,7 +267,7 @@ export default function ColorConverter() {
         </p>
         <div className="flex justify-center flex-wrap gap-3">
           <Button onClick={resetToDefault} variant="outline" className="gap-2"><RefreshCw className="w-4 h-4" /> Resetar</Button>
-          <Button variant="outline" onClick={pinCurrent} className="gap-2" title="Fixar cor atual"><span>Fixar</span></Button>
+          {/* Botão Fixar removido */}
           <Button variant="outline" onClick={toggleVariations} className="gap-2" title={variationsOpen ? 'Fechar variações' : 'Gerar variações (tints & shades)'}>
             <Layers className="w-4 h-4" /><span>{variationsOpen ? 'Fechar Variações' : 'Variações'}</span>
           </Button>
@@ -290,58 +291,68 @@ export default function ColorConverter() {
             </CardContent>
           </Card>
 
+          {/* CARD: VARIAÇÕES */}
           <Card className="border-primary/30">
             <CardHeader className="pb-2 border-b">
               <CardTitle className="text-xs font-semibold tracking-wide uppercase text-muted-foreground flex items-center justify-between">
-                <span>Variações & Histórico</span>
-                <div className="flex items-center gap-2">
-                  <Button size="sm" variant="outline" onClick={toggleVariations} className="h-7 px-2 text-[11px] gap-1"><Layers className="w-3 h-3" /> {variationsOpen ? 'Fechar' : 'Variações'}</Button>
-                  <button onClick={clearHistory} className="p-1.5 rounded-md bg-transparent text-destructive/80 hover:text-destructive hover:bg-destructive/15 border border-destructive/30 hover:border-destructive/60 transition flex items-center justify-center" title="Limpar histórico" aria-label="Limpar histórico">
-                    <Trash size={16} strokeWidth={2} />
-                  </button>
-                </div>
+                <span>Variações</span>
+                <Button size="sm" variant="outline" onClick={toggleVariations} className="h-7 px-2 text-[11px] gap-1" title={variationsOpen ? 'Fechar variações geradas' : 'Gerar variações automáticas'}>
+                  <Layers className="w-3 h-3" /> {variationsOpen ? 'Fechar' : 'Gerar'}
+                </Button>
               </CardTitle>
             </CardHeader>
-            <CardContent className="pt-4 space-y-4">
+            <CardContent className="pt-4">
+              {pinned.length === 0 && (
+                <p className="text-[11px] text-muted-foreground italic">Nenhuma variação. Clique em "Gerar" para criar tons e sombras.</p>
+              )}
               {pinned.length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="text-[11px] font-medium tracking-wide text-muted-foreground">Variações (arraste)</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {pinned.map((pc, idx) => (
-                      <div
-                        key={pc.hex}
-                        draggable
-                        onDragStart={() => handleDragStart(idx)}
-                        onDragEnter={(e)=>{ e.preventDefault(); handleDragEnter(idx) }}
-                        onDragEnd={handleDragEnd}
-                        onDragOver={(e)=> e.preventDefault()}
-                        className="group relative w-10 h-10 rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-ring overflow-hidden cursor-move"
-                        style={{ backgroundColor: pc.hex, outline: dragIndex===idx? '2px solid var(--ring)':undefined }}
-                        title={pc.hex}
-                      >
-                        <button onClick={() => removePinned(pc.hex)} className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 bg-black/50 text-white w-4 h-4 flex items-center justify-center text-[8px]" aria-label="Remover variação"><X size={10} /></button>
-                        <button onClick={() => updateFrom('HEX', pc.hex)} className="absolute inset-0 opacity-0 group-active:opacity-100 group-hover:opacity-90 text-[8px] font-mono text-white flex items-center justify-center bg-black/30">{pc.hex.substring(1)}</button>
-                      </div>
-                    ))}
-                  </div>
+                <div className="flex flex-wrap gap-2">
+                  {pinned.map((pc, idx) => (
+                    <div
+                      key={pc.hex}
+                      draggable
+                      onDragStart={() => handleDragStart(idx)}
+                      onDragEnter={(e)=>{ e.preventDefault(); handleDragEnter(idx) }}
+                      onDragEnd={handleDragEnd}
+                      onDragOver={(e)=> e.preventDefault()}
+                      className="group relative w-10 h-10 rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-ring overflow-hidden cursor-move"
+                      style={{ backgroundColor: pc.hex, outline: dragIndex===idx? '2px solid var(--ring)':undefined }}
+                      title={pc.hex}
+                    >
+                      <button onClick={() => removePinned(pc.hex)} className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 bg-black/50 text-white w-4 h-4 flex items-center justify-center text-[8px]" aria-label="Remover variação"><X size={10} /></button>
+                      <button onClick={() => updateFrom('HEX', pc.hex)} className="absolute inset-0 opacity-0 group-active:opacity-100 group-hover:opacity-90 text-[8px] font-mono text-white flex items-center justify-center bg-black/30">{pc.hex.substring(1)}</button>
+                    </div>
+                  ))}
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          {/* CARD: HISTÓRICO */}
+          <Card className="border-primary/30">
+            <CardHeader className="pb-2 border-b">
+              <CardTitle className="text-xs font-semibold tracking-wide uppercase text-muted-foreground flex items-center justify-between">
+                <span>Histórico</span>
+                <button onClick={clearHistory} className="p-1.5 rounded-md bg-transparent text-destructive/80 hover:text-destructive hover:bg-destructive/15 border border-destructive/30 hover:border-destructive/60 transition flex items-center justify-center" title="Limpar histórico" aria-label="Limpar histórico">
+                  <Trash size={16} strokeWidth={2} />
+                </button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4">
+              {history.length === 0 && <p className="text-[11px] text-muted-foreground italic">Ainda vazio. Altere a cor para registrar.</p>}
               {history.length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="text-[11px] font-medium tracking-wide text-muted-foreground">Histórico</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {history.map(hc => (
-                      <button
-                        key={hc.timestamp + hc.hex}
-                        onClick={() => updateFrom('HEX', hc.hex, { skipHistory: true })}
-                        className="group relative w-7 h-7 rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-ring overflow-hidden"
-                        style={{ backgroundColor: hc.hex }}
-                        title={hc.hex}
-                      >
-                        <span className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-black/40 text-[7px] text-white flex items-center justify-center transition-opacity">{hc.hex.substring(1)}</span>
-                      </button>
-                    ))}
-                  </div>
+                <div className="flex flex-wrap gap-2">
+                  {history.map(hc => (
+                    <button
+                      key={hc.timestamp + hc.hex}
+                      onClick={() => updateFrom('HEX', hc.hex, { skipHistory: true })}
+                      className="group relative w-7 h-7 rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-ring overflow-hidden"
+                      style={{ backgroundColor: hc.hex }}
+                      title={hc.hex}
+                    >
+                      <span className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-black/40 text-[7px] text-white flex items-center justify-center transition-opacity">{hc.hex.substring(1)}</span>
+                    </button>
+                  ))}
                 </div>
               )}
             </CardContent>
